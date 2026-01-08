@@ -203,16 +203,15 @@ def hyper_param_experiment():
     """
     # 1. 定义要试验的超参数范围
     loss_k_list = [1.0, 1.5, 2.0, 2.5, 3.0]  # 惩罚系数k的试验范围
-    dimension_model_list = [128, 256]  # 模型维度
-    batch_size_list = [16, 32]  # 批次大小
-    learning_rate_list = [0.001, 0.005]  # 学习率
+    dimension_model_list = [128]  # 模型维度：[128, 256]
+    batch_size_list = [16]  # 批次大小：[16, 32]
+    learning_rate_list = [0.001]  # 学习率：[0.001, 0.005]
     loss_type = 'Custom'  # 使用自定义损失函数（若要对比MSE，可设为['MSE', 'Custom']）
 
     # 2. 试验的月份范围
     month_ranges = [
         range(202208, 202213),
-        range(202301, 202313),
-        range(202401, 202404)
+        range(202301, 202304)
     ]
 
     # 3. 遍历所有超参数组合
@@ -225,7 +224,7 @@ def hyper_param_experiment():
                         for month_data in month_range:
                             print(
                                 f'\n========== 开始试验：k={loss_k}, d_model={dimension_model}, batch={batch_size}, lr={learning_rate}, month={month_data} ==========')
-                            input_data = f'deep_train_mz_{month_data}.csv'
+                            input_data = f'/kaggle/input/0105-saleformer/Saleformer/data/deep_train_mz_{month_data}.csv'
                             try:
                                 start(
                                     feature_select='time_trends_slide',

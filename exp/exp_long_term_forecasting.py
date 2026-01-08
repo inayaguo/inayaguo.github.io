@@ -870,14 +870,36 @@ class Exp_Long_Term_Forecast(Exp_Basic):
             f'batch_size:{self.args.batch_size}, encoder_layers:{self.args.e_layers}, lr:{self.args.learning_rate}, d_model:{self.args.d_model}')
 
         # 保存k值对比结果
-        result_path = "result/k_value_experiment.csv"
-        if not os.path.exists(result_path):
-            with open(result_path, 'w', encoding='utf-8') as f:
-                f.write(
-                    'model,loss_k,month,d_model,encoder_layers,batch_size,learning_rate,mae,mse,rmse,mape,mspe,store_acc\n')
+        # 1. 定义基础路径和目标文件路径
+        base_dir = "/kaggle/working"
+        result_dir = os.path.join(base_dir, "result")
+        result_path = os.path.join(result_dir, "k_value_experiment.csv")
 
-        with open(result_path, 'a', encoding='utf-8') as f:
-            f.write(
-                f'{self.args.model},{self.loss_k},{self.args.month_predict},{self.args.d_model},{self.args.e_layers},{self.args.batch_size},{self.args.learning_rate},{mae:.4f},{mse:.4f},{rmse:.4f},{mape:.4f},{mspe:.4f},{store_acc:.4f}\n')
+        # 2. 检查并创建基础目录和子文件夹（确保路径存在）
+        if os.path.exists(base_dir):  # 先判断kaggle/working是否存在
+            os.makedirs(result_dir, exist_ok=True)  # 创建result子文件夹，已存在则不报错
+
+            # 3. 准备写入内容（表头+数据行）
+            header = 'model,loss_k,month,d_model,encoder_layers,batch_size,learning_rate,mae,mse,rmse,mape,mspe,store_acc\n'
+            data_row = f'{self.args.model},{self.loss_k},{self.args.month_predict},{self.args.d_model},{self.args.e_layers},{self.args.batch_size},{self.args.learning_rate},{mae:.4f},{mse:.4f},{rmse:.4f},{mape:.4f},{mspe:.4f},{store_acc:.4f}\n'
+
+            # 4. 写入文件（不存在则创建+写表头，存在则追加数据）
+            if not os.path.exists(result_path):
+                with open(result_path, 'w', encoding='utf-8') as f:
+                    f.write(header)  # 新文件先写表头
+            with open(result_path, 'a', encoding='utf-8') as f:
+                f.write(data_row)  # 追加写入数据行
+        else:
+            print(f"基础目录 {base_dir} 不存在，无法写入文件")
+
+        # result_path = "/kaggle/working/result/k_value_experiment.csv"
+        # if not os.path.exists(result_path):
+        #     with open(result_path, 'w', encoding='utf-8') as f:
+        #         f.write(
+        #             'model,loss_k,month,d_model,encoder_layers,batch_size,learning_rate,mae,mse,rmse,mape,mspe,store_acc\n')
+        #
+        # with open(result_path, 'a', encoding='utf-8') as f:
+        #     f.write(
+        #         f'{self.args.model},{self.loss_k},{self.args.month_predict},{self.args.d_model},{self.args.e_layers},{self.args.batch_size},{self.args.learning_rate},{mae:.4f},{mse:.4f},{rmse:.4f},{mape:.4f},{mspe:.4f},{store_acc:.4f}\n')
 
         return
