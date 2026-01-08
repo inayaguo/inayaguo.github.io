@@ -1,20 +1,23 @@
 import argparse
-# import os
 import torch
 from exp.exp_long_term_forecasting import Exp_Long_Term_Forecast
-# from exp.exp_imputation import Exp_Imputation
-# from exp.exp_short_term_forecasting import Exp_Short_Term_Forecast
-# from exp.exp_anomaly_detection import Exp_Anomaly_Detection
-# from exp.exp_classification import Exp_Classification
 import random
 import numpy as np
 import pandas as pd
+
 torch.manual_seed(seed=1)
 torch.cuda.manual_seed_all(seed=1)
 print(torch.cuda.is_available())
 print(torch.cuda.device_count())
 
-def start(feature_select, dimension_model, encoder_layers, batch_size, learning_rate, data_input, model, seed, i):
+
+def start(feature_select, dimension_model, encoder_layers, batch_size, learning_rate, data_input, model, seed, i,
+          loss_k=2, loss_type='MSE'):
+    """
+    新增参数：
+    loss_k: 自定义损失函数的惩罚系数k
+    loss_type: 损失函数类型，可选['MSE', 'Custom']
+    """
     fix_seed = seed
     random.seed(fix_seed)
     torch.manual_seed(fix_seed)
@@ -31,12 +34,15 @@ def start(feature_select, dimension_model, encoder_layers, batch_size, learning_
     parser.add_argument('--model', type=str, required=False, default=model,
                         help='model name, options: [Autoformer, Transformer, TimesNet, FEDformer]')
     parser.add_argument('--month_predict', type=int, required=False, default=i)
+    # 新增：损失函数相关参数
+    parser.add_argument('--loss_k', type=float, required=False, default=loss_k, help='惩罚系数k for custom loss')
+    parser.add_argument('--loss', type=str, required=False, default=loss_type, help='loss function: MSE/Custom')
 
     # data loader
     parser.add_argument('--data', type=str, required=False, default='sale', help='dataset type')
     parser.add_argument('--root_path', type=str, default='./data/', help='root path of the data file')
     parser.add_argument('--data_path', type=str, default=data_input, help='data file')
-    
+
     # time,slide,trends随意组合
     parser.add_argument('--features', type=str, default=feature_select,
                         help='forecasting task, options:[M, S, MS]; M:multivariate predict multivariate, S:univariate predict univariate, MS:multivariate predict univariate')
@@ -60,7 +66,7 @@ def start(feature_select, dimension_model, encoder_layers, batch_size, learning_
     # model define
     parser.add_argument('--top_k', type=int, default=5, help='for TimesBlock')
     parser.add_argument('--num_kernels', type=int, default=6, help='for Inception')
-    
+
     # time:1,slide:7,trends:13
     feature_dimension = 1
     if 'slide' in feature_select:
@@ -101,7 +107,6 @@ def start(feature_select, dimension_model, encoder_layers, batch_size, learning_
     parser.add_argument('--patience', type=int, default=3, help='early stopping patience')
     parser.add_argument('--learning_rate', type=float, default=learning_rate, help='optimizer learning rate')
     parser.add_argument('--des', type=str, default='test', help='exp description')
-    parser.add_argument('--loss', type=str, default='MSE', help='loss function')
     parser.add_argument('--lradj', type=str, default='type1', help='adjust learning rate')
     parser.add_argument('--use_amp', action='store_true', help='use automatic mixed precision training', default=False)
 
@@ -126,25 +131,18 @@ def start(feature_select, dimension_model, encoder_layers, batch_size, learning_
         args.gpu = args.device_ids[0]
 
     print('Args in experiment:')
-    print(args.gpu)
+    print(f'Loss k value: {args.loss_k}, Loss type: {args.loss}')  # 新增：打印k值和损失函数类型
+    print(f'GPU: {args.gpu}')
 
     if args.task_name == 'long_term_forecast':
         Exp = Exp_Long_Term_Forecast
-    # elif args.task_name == 'short_term_forecast':
-    #     Exp = Exp_Short_Term_Forecast
-    # elif args.task_name == 'imputation':
-    #     Exp = Exp_Imputation
-    # elif args.task_name == 'anomaly_detection':
-    #     Exp = Exp_Anomaly_Detection
-    # elif args.task_name == 'classification':
-    #     Exp = Exp_Classification
     else:
         Exp = Exp_Long_Term_Forecast
 
-    
     if args.is_training:
         for ii in range(args.itr):
-            setting = '{}_{}_{}_{}_ft{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_dl{}_df{}_fc{}_eb{}_dt{}_{}_{}'.format(
+            # 新增：setting中加入k值标识，区分不同实验
+            setting = '{}_{}_{}_{}_ft{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_dl{}_df{}_fc{}_eb{}_dt{}_k{}_loss{}_{}_{}'.format(
                 args.task_name,
                 args.model_id,
                 args.model,
@@ -161,6 +159,8 @@ def start(feature_select, dimension_model, encoder_layers, batch_size, learning_
                 args.factor,
                 args.embed,
                 args.distil,
+                args.loss_k,
+                args.loss,
                 args.des, ii)
 
             exp = Exp(args)  # set experiments
@@ -170,7 +170,7 @@ def start(feature_select, dimension_model, encoder_layers, batch_size, learning_
             torch.cuda.empty_cache()
     else:
         ii = 0
-        setting = '{}_{}_{}_{}_ft{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_dl{}_df{}_fc{}_eb{}_dt{}_{}_{}'.format(
+        setting = '{}_{}_{}_{}_ft{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_dl{}_df{}_fc{}_eb{}_dt{}_k{}_loss{}_{}_{}'.format(
             args.task_name,
             args.model_id,
             args.model,
@@ -187,6 +187,8 @@ def start(feature_select, dimension_model, encoder_layers, batch_size, learning_
             args.factor,
             args.embed,
             args.distil,
+            args.loss_k,
+            args.loss,
             args.des, ii)
 
         exp = Exp(args)  # set experiments
@@ -194,76 +196,86 @@ def start(feature_select, dimension_model, encoder_layers, batch_size, learning_
         exp.test(setting, test=1)
         torch.cuda.empty_cache()
 
+
+def hyper_param_experiment():
+    """
+    超参数试验函数：遍历不同的k值、模型参数，对比效果
+    """
+    # 1. 定义要试验的超参数范围
+    loss_k_list = [1.0, 1.5, 2.0, 2.5, 3.0]  # 惩罚系数k的试验范围
+    dimension_model_list = [128, 256]  # 模型维度
+    batch_size_list = [16, 32]  # 批次大小
+    learning_rate_list = [0.001, 0.005]  # 学习率
+    loss_type = 'Custom'  # 使用自定义损失函数（若要对比MSE，可设为['MSE', 'Custom']）
+
+    # 2. 试验的月份范围
+    month_ranges = [
+        range(202208, 202213),
+        range(202301, 202313),
+        range(202401, 202404)
+    ]
+
+    # 3. 遍历所有超参数组合
+    for loss_k in loss_k_list:
+        for dimension_model in dimension_model_list:
+            for batch_size in batch_size_list:
+                for learning_rate in learning_rate_list:
+                    # 遍历每个月份
+                    for month_range in month_ranges:
+                        for month_data in month_range:
+                            print(
+                                f'\n========== 开始试验：k={loss_k}, d_model={dimension_model}, batch={batch_size}, lr={learning_rate}, month={month_data} ==========')
+                            input_data = f'deep_train_mz_{month_data}.csv'
+                            try:
+                                start(
+                                    feature_select='time_trends_slide',
+                                    dimension_model=dimension_model,
+                                    encoder_layers=2,
+                                    batch_size=batch_size,
+                                    learning_rate=learning_rate,
+                                    data_input=input_data,
+                                    model='FEDformer',
+                                    seed=2021,
+                                    i=month_data,
+                                    loss_k=loss_k,
+                                    loss_type=loss_type
+                                )
+                            except Exception as e:
+                                print(f'试验失败：k={loss_k}, month={month_data}, 错误：{str(e)}')
+                                # 记录失败的试验
+                                with open('result/experiment_error.log', 'a') as f:
+                                    f.write(
+                                        f'k={loss_k}, d_model={dimension_model}, batch={batch_size}, lr={learning_rate}, month={month_data}, error={str(e)}\n')
+                            finally:
+                                torch.cuda.empty_cache()  # 清理GPU缓存
+
+
+def select_train_test(df):
+    """数据清洗函数"""
+    all_groups = []
+    grouped = df.groupby(['name', 'start'])
+
+    for name_start, group in grouped:
+        if len(group) < 13:
+            continue
+
+        mean_value = group.iloc[:12]['predict'].mean()
+        thirteenth_value = group.iloc[12]['predict']
+
+        if mean_value != 0:
+            difference_rate = abs(thirteenth_value - mean_value) / mean_value
+            if difference_rate <= 0.30:
+                all_groups.append(group)
+
+    result_df = pd.concat(all_groups, ignore_index=True)
+    return result_df
+
+
 if __name__ == '__main__':
-    '''清洗训练集&测试集'''
-    def select_train_test(df):
-        all_groups = []
+    # 方式1：单参数运行（原逻辑）
+    # input_data = 'deep_train_202305.csv'
+    # start(feature_select='time_trends_slide', dimension_model=128, encoder_layers=2, batch_size=16,
+    #       learning_rate=0.005, data_input=input_data, model='FEDformer', seed=2021, i=202305, loss_k=2.0, loss_type='Custom')
 
-        grouped = df.groupby(['name', 'start'])
-
-        for name_start, group in grouped:
-                if len(group) < 13:  # 如果组内数据不足 13 行，则跳过
-                    continue
-                
-                # 计算前 12 行的均值
-                mean_value = group.iloc[:12]['predict'].mean()  # 假设 'value' 是需要计算的列
-                # 取第 13 行的值
-                thirteenth_value = group.iloc[12]['predict']
-                
-                # 计算差异率
-                if mean_value != 0:  # 避免除以零的情况
-                    difference_rate = abs(thirteenth_value - mean_value) / mean_value
-                    
-                    # 如果差异率小于等于 10%，则保留该组
-                    if difference_rate <= 0.30:
-                        all_groups.append(group)
-
-        result_df = pd.concat(all_groups, ignore_index=True)
-
-        return result_df
-
-
-    input_data = 'deep_train_202305.csv'
-    # input_data = '/kaggle/input/0105-saleformer/Saleformer/data/deep_train_202305.csv'
-    start(feature_select='time_trends_slide', dimension_model=128, encoder_layers=2, batch_size=16,
-          learning_rate=0.005, data_input=input_data, model='FEDformer', seed=2021, i=202305)
-
-    '''测试参数'''
-    '''
-    def test_params():
-        for dimension_model in [256, 512]:
-            for batch_size in [32, 64, 128]:
-                for learning_rate in [1e-3, 1e-4, 5e-4]:
-                    # 美赞验收
-                    for month_data in range(202208, 202213):    
-                        input_data = 'deep_train_mz_' + str(month_data) + '.csv'
-                        start(feature_select = 'time_trends_slide', dimension_model=dimension_model, encoder_layers=2, batch_size=batch_size, learning_rate=learning_rate, data_input=input_data, model='FEDformer', seed=2021, i=month_data)
-                    
-                    for month_data in range(202301, 202313):    
-                        input_data = 'deep_train_mz_' + str(month_data) + '.csv'
-                        start(feature_select = 'time_trends_slide', dimension_model=dimension_model, encoder_layers=2, batch_size=batch_size, learning_rate=learning_rate, data_input=input_data, model='FEDformer', seed=2021, i=month_data)
-
-                    for month_data in range(202401, 202404):
-                        input_data = 'deep_train_mz_' + str(month_data) + '.csv'
-                        start(feature_select = 'time_trends_slide', dimension_model=dimension_model, encoder_layers=2, batch_size=batch_size, learning_rate=learning_rate, data_input=input_data, model='FEDformer', seed=2021, i=month_data)
-    '''
-    # test_params()
-
-    '''选择最优参数训练并输出结果'''
-    '''
-    parameters = pd.read_csv('/home/ubuntu/Time-Series-Library-main/parameters_selected_0.3.csv', encoding='utf_8_sig')
-    for month_data in range(202208, 202213):
-        filtered_parameters = parameters[parameters['month'] == month_data]
-        input_data = 'deep_train_mz_' + str(month_data) + '.csv'
-        start(feature_select = 'time_trends_slide', dimension_model=filtered_parameters['dimension_model'].item(), encoder_layers=2, batch_size=filtered_parameters['batch_size'].item(), learning_rate=filtered_parameters['learning_rate'].item(), data_input=input_data, model='FEDformer', seed=2021, i=month_data)
-                
-    for month_data in range(202301, 202313):    
-        filtered_parameters = parameters[parameters['month'] == month_data]
-        input_data = 'deep_train_mz_' + str(month_data) + '.csv'
-        start(feature_select = 'time_trends_slide', dimension_model=filtered_parameters['dimension_model'].item(), encoder_layers=2, batch_size=filtered_parameters['batch_size'].item(), learning_rate=filtered_parameters['learning_rate'].item(), data_input=input_data, model='FEDformer', seed=2021, i=month_data)
-
-    for month_data in range(202401, 202404):
-        filtered_parameters = parameters[parameters['month'] == month_data]
-        input_data = 'deep_train_mz_' + str(month_data) + '.csv'
-        start(feature_select = 'time_trends_slide', dimension_model=filtered_parameters['dimension_model'].item(), encoder_layers=2, batch_size=filtered_parameters['batch_size'].item(), learning_rate=filtered_parameters['learning_rate'].item(), data_input=input_data, model='FEDformer', seed=2021, i=month_data)
-    '''
+    # 方式2：运行超参数试验（重点：遍历不同k值和模型参数）
+    hyper_param_experiment()
