@@ -674,6 +674,49 @@ class Exp_Long_Term_Forecast(Exp_Basic):
         self.model.train()
         return total_loss
 
+    def save_weights_to_csv(self, epoch, month, enc_core_weights, dec_core_weights):
+        base_dir = "/kaggle/working"
+        result_dir = os.path.join(base_dir, "result")
+        result_path = os.path.join(result_dir, "weights_second_col_summary.csv")
+
+        if os.path.exists(base_dir):
+            os.makedirs(result_dir, exist_ok=True)
+
+            # 提取特征贡献度（加异常处理）
+            try:
+                enc_second_col = enc_core_weights["feature_contribution"]
+                enc_second_col = enc_second_col if isinstance(enc_second_col, (list, np.ndarray)) else [enc_second_col]
+            except:
+                enc_second_col = []
+
+            try:
+                dec_second_col = dec_core_weights["feature_contribution"]
+                dec_second_col = dec_second_col if isinstance(dec_second_col, (list, np.ndarray)) else [dec_second_col]
+            except:
+                dec_second_col = []
+
+            # 准备数据
+            header = 'epoch,month,enc_core_second_col,dec_core_second_col\n'
+            max_len = max(len(enc_second_col), len(dec_second_col))
+            data_rows = []
+            for i in range(max_len):
+                enc_val = enc_second_col[i] if i < len(enc_second_col) else ""
+                dec_val = dec_second_col[i] if i < len(dec_second_col) else ""
+                data_row = f'{epoch},{month},{enc_val:.4f},{dec_val:.4f}\n' if isinstance(enc_val,
+                                                                                          (int, float)) and isinstance(
+                    dec_val, (int, float)) else f'{epoch},{month},{enc_val},{dec_val}\n'
+                data_rows.append(data_row)
+
+            # 写入CSV
+            if not os.path.exists(result_path):
+                with open(result_path, 'w', encoding='utf-8') as f:
+                    f.write(header)
+            with open(result_path, 'a', encoding='utf-8') as f:
+                f.writelines(data_rows)
+            print(f"✅ 数据写入成功：{result_path}")
+        else:
+            print(f"❌ 基础目录 {base_dir} 不存在")
+
     def train(self, setting):
         print('------------------loading dataset------------------')
         train_data, train_loader = self._get_data(flag='train')
@@ -775,7 +818,10 @@ class Exp_Long_Term_Forecast(Exp_Basic):
                 # 保存模型参数权重
                 self.model.save_embedding_weights()
                 # 打印特征贡献度（传入args作为configs）
-                self.model.print_feature_contribution(self.args)
+                # self.model.print_feature_contribution(self.args)
+                enc_core_weights, dec_core_weights = self.model.print_feature_contribution(self.args)
+                self.save_weights_to_csv(epoch + 1, self.args.month_predict, enc_core_weights, dec_core_weights)
+
             # ==========================================================================
 
             early_stopping(vali_loss, self.model, path)
@@ -783,7 +829,9 @@ class Exp_Long_Term_Forecast(Exp_Basic):
                 # 早停时也保存一次最终的参数
                 print("\n---------- 早停触发：保存最终Embedding参数 ----------")
                 self.model.save_embedding_weights()
-                self.model.print_feature_contribution(self.args)
+                # self.model.print_feature_contribution(self.args)
+                enc_core_weights, dec_core_weights = self.model.print_feature_contribution(self.args)
+                self.save_weights_to_csv(epoch + 1, self.args.month_predict, enc_core_weights, dec_core_weights)
                 print("Early stopping")
                 break
 

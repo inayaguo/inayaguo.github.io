@@ -415,6 +415,8 @@ class Model(nn.Module):
         for idx, contrib in enumerate(dec_core_weights["feature_contribution"]):
             print(f"  特征{idx + 1}: {contrib:.6f}")
 
+        return enc_core_weights, dec_core_weights
+
     def forecast(self, x_enc, x_mark_enc, x_dec, x_mark_dec):
         # Decomposition
         mean = torch.mean(x_enc, dim=1).unsqueeze(1).repeat(1, self.pred_len, 1)
