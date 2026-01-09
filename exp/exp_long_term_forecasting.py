@@ -699,6 +699,9 @@ class Exp_Long_Term_Forecast(Exp_Basic):
         if self.args.use_amp:
             scaler = torch.cuda.amp.GradScaler()
 
+        # 新增：设置参数保存/打印的间隔（可根据需求调整）
+        save_interval = 5  # 每5个epoch保存一次参数、打印一次特征贡献度
+
         for epoch in range(self.args.train_epochs):
             iter_count = 0
             train_loss = []
@@ -764,8 +767,23 @@ class Exp_Long_Term_Forecast(Exp_Basic):
 
             print("Epoch: {0}, Steps: {1} | Train Loss: {2:.7f} Vali Loss: {3:.7f} ".format(
                 epoch + 1, train_steps, train_loss, vali_loss))
+
+            # ===================== 核心新增：调用参数保存和打印函数 =====================
+            # 每 save_interval 个epoch执行一次，或最后一个epoch强制执行
+            if (epoch + 1) % save_interval == 0 or (epoch + 1) == self.args.train_epochs:
+                print(f"\n---------- Epoch {epoch + 1}: 保存Embedding参数并打印特征贡献度 ----------")
+                # 保存模型参数权重
+                self.model.save_embedding_weights()
+                # 打印特征贡献度（传入args作为configs）
+                self.model.print_feature_contribution(self.args)
+            # ==========================================================================
+
             early_stopping(vali_loss, self.model, path)
             if early_stopping.early_stop:
+                # 早停时也保存一次最终的参数
+                print("\n---------- 早停触发：保存最终Embedding参数 ----------")
+                self.model.save_embedding_weights()
+                self.model.print_feature_contribution(self.args)
                 print("Early stopping")
                 break
 
@@ -773,6 +791,11 @@ class Exp_Long_Term_Forecast(Exp_Basic):
 
         best_model_path = path + '/' + 'checkpoint.pth'
         self.model.load_state_dict(torch.load(best_model_path))
+
+        # 训练结束后，再次确认保存一次最优模型的参数
+        print("\n---------- 训练完成：保存最优模型Embedding参数 ----------")
+        self.model.save_embedding_weights()
+        self.model.print_feature_contribution(self.args)
 
         return self.model
 

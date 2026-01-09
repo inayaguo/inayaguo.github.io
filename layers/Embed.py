@@ -3,6 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.utils import weight_norm
 import math
+import csv
+import numpy as np
 
 class SlideEmbedding(nn.Module):
     def __init__(self, slide_in, d_slide):
@@ -287,6 +289,51 @@ class DataEmbedding(nn.Module):
             x = self.value_embedding(
                 x) + self.temporal_embedding(x_mark) + self.position_embedding(x)
         return self.dropout(x)
+
+    # 新增：保存DataEmbedding所有参数到CSV
+    def save_embedding_params(self, save_path="dataembedding_params.csv"):
+        """
+        保存DataEmbedding层的所有可训练参数到CSV文件
+        :param save_path: CSV文件保存路径
+        """
+        # 获取所有参数（value_embedding/position_embedding/temporal_embedding）
+        params = self.named_parameters()
+        csv_header = ["param_name", "param_shape", "param_values"]
+        csv_data = []
+
+        for name, param in params:
+            # 转换为numpy数组并展平（便于CSV存储）
+            param_np = param.cpu().detach().numpy()
+            param_flat = param_np.flatten()
+            # 格式化为字符串（保留6位小数）
+            param_str = ",".join([f"{v:.6f}" for v in param_flat])
+            csv_data.append([name, str(param_np.shape), param_str])
+
+        # 写入CSV
+        with open(save_path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(csv_header)
+            writer.writerows(csv_data)
+
+        print(f"✅ DataEmbedding参数已保存至: {save_path}")
+
+    # 新增：提取核心权重（用于特征贡献分析）
+    def get_core_weights(self):
+        """
+        获取value_embedding的核心卷积权重（TokenEmbedding的Conv1d权重）
+        返回：dict，包含权重矩阵和特征贡献度
+        """
+        # 获取TokenEmbedding的Conv1d权重
+        conv_weight = self.value_embedding.tokenConv.weight.cpu().detach().numpy()  # 形状: [d_model, c_in, kernel_size]
+        # 计算每个输入特征的权重绝对值均值（量化贡献度）
+        # conv_weight形状：[out_channels(d_model), in_channels(c_in), kernel_size]
+        feature_contribution = np.mean(np.abs(conv_weight), axis=(0, 2))  # 按输入特征维度求均值，形状: [c_in,]
+
+        return {
+            "conv_weight": conv_weight,  # 卷积核权重
+            "feature_contribution": feature_contribution,  # 各输入特征贡献度
+            "position_embedding": self.position_embedding.pe.cpu().detach().numpy()  # 位置编码参数
+        }
 
 
 class DataEmbedding_wo_pos(nn.Module):

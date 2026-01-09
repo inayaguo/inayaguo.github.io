@@ -315,7 +315,9 @@ class Model(nn.Module):
         # Decomposition
         self.decomp = series_decomp(configs.moving_avg)
         self.enc_embedding = DataEmbedding(configs.enc_in, configs.d_model, configs.embed, configs.freq, configs.dropout)
-        self.dec_embedding = DataEmbedding(configs.dec_in, configs.d_model, configs.embed, configs.freq, configs.dropout)
+        self.dec_embedding = DataEmbedding(configs.dec_in, configs.d_model, configs.embed, configs.freq,
+                                           configs.dropout)
+
         self.routing_layer = RoutingLayer(num_experts=2, d_model=configs.d_model)
 
         # MoE structure
@@ -392,6 +394,26 @@ class Model(nn.Module):
             self.act = F.gelu
             self.dropout = nn.Dropout(configs.dropout)
             self.projection = nn.Linear(configs.d_model * configs.seq_len, configs.num_class)
+
+    def save_embedding_weights(self):
+        """新增方法：保存当前迭代的模型参数权重（训练阶段调用）"""
+        # 保存编码器embedding参数
+        self.enc_embedding.save_embedding_params("enc_dataembedding_params.csv")
+        # 保存解码器embedding参数
+        self.dec_embedding.save_embedding_params("dec_dataembedding_params.csv")
+
+    def print_feature_contribution(self, configs):
+        """新增方法：打印当前迭代的特征贡献度（训练阶段调用）"""
+        # 提取特征贡献度并打印（用于销量预测特征分析）
+        enc_core_weights = self.enc_embedding.get_core_weights()
+        print("\n📊 编码器DataEmbedding特征贡献度（输入特征维度：{}）:".format(configs.enc_in))
+        for idx, contrib in enumerate(enc_core_weights["feature_contribution"]):
+            print(f"  特征{idx + 1}: {contrib:.6f}")
+
+        dec_core_weights = self.dec_embedding.get_core_weights()
+        print("\n📊 解码器DataEmbedding特征贡献度（输入特征维度：{}）:".format(configs.dec_in))
+        for idx, contrib in enumerate(dec_core_weights["feature_contribution"]):
+            print(f"  特征{idx + 1}: {contrib:.6f}")
 
     def forecast(self, x_enc, x_mark_enc, x_dec, x_mark_dec):
         # Decomposition

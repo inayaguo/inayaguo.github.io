@@ -202,10 +202,10 @@ def hyper_param_experiment():
     超参数试验函数：遍历不同的k值、模型参数，对比效果
     """
     # 1. 定义要试验的超参数范围
-    loss_k_list = [1.0, 1.5, 2.0, 2.5, 3.0]  # 惩罚系数k的试验范围
-    dimension_model_list = [128]  # 模型维度：[128, 256]
-    batch_size_list = [16]  # 批次大小：[16, 32]
-    learning_rate_list = [0.001]  # 学习率：[0.001, 0.005]
+    loss_k_list = [2.0]  # 惩罚系数k的试验范围: [1.0, 1.5, 2.0, 2.5, 3.0]
+    dimension_model_list = [128]  # 模型维度: [128, 256]
+    batch_size_list = [16]  # 批次大小: [16, 32]
+    learning_rate_list = [0.001]  # 学习率: [0.001, 0.005]
     loss_type = 'Custom'  # 使用自定义损失函数（若要对比MSE，可设为['MSE', 'Custom']）
 
     # 2. 试验的月份范围
